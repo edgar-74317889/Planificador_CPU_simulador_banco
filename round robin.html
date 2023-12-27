@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Planificación del CPU - Round Robin</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 50%;
+            margin: 20px auto;
+        }
+
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        #gantt-chart {
+            margin-top: 20px;
+        }
+
+        .gantt-bar {
+            height: 40px;
+            border: 1px solid #161515;
+            margin-right: 10px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .gantt-row {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .gantt-label {
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        #tiempo-espera-promedio {
+            margin-top: 20px;
+        }
+
+        #tiempo-espera-promedio-table {
+            border-collapse: collapse;
+            width: 50%;
+            margin: 20px auto;
+        }
+
+        #tiempo-espera-promedio-table th, #tiempo-espera-promedio-table td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Simulador de Planificación del CPU - Round Robin</h1>
+
+    <label for="quantum">Quantum:</label>
+    <input type="number" id="quantum" value="2">
+
+    <button onclick="solicitarDatos()">Iniciar Simulación</button>
+
+    <!-- Agrega esta sección para mostrar la tabla de Resultados -->
+    <div id="resultados">
+        <h2>Resultados</h2>
+        <table border="1" id="resultados-table">
+            <thead>
+                <tr>
+                    <th>Proceso</th>
+                    <th>Tiempo de Burst</th>
+                    <th>Tiempo de Espera</th>
+                    <th>Tiempo de Retorno</th>
+                </tr>
+            </thead>
+            <tbody id="resultados-body"></tbody>
+        </table>
+        <div id="average-times"></div>
+    </div>
+
+    <!-- Agrega esta sección para mostrar el diagrama de Gantt -->
+    <div id="gantt-chart">
+        <h2>Diagrama de Gantt</h2>
+        <div id="gantt-legend"></div>
+        <div id="gantt-bars"></div>
+    </div>
+
+    <!-- Agrega esta sección para mostrar el tiempo de espera promedio -->
+    <div id="tiempo-espera-promedio">
+        <h2>Tiempo de Espera Promedio</h2>
+        <table border="1" id="tiempo-espera-promedio-table">
+            <thead>
+                <tr>
+                    <th>Descripción</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody id="tiempo-espera-promedio-body"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Función para encontrar el tiempo de espera de cada proceso
+        const encontrarTiempoEspera = (procesos, n, tiempoBurst, tiempoEspera, quantum) => {
+            let tiempoRestante = new Array(n).fill(0);
+            for (let i = 0; i < n; i++)
+                tiempoRestante[i] = tiempoBurst[i];
+
+            let t = 0;
+            while (1) {
+                let hecho = true;
+
+                for (let i = 0; i < n; i++) {
+                    if (tiempoRestante[i] > 0) {
+                        hecho = false;
+
+                        if (tiempoRestante[i] <= quantum) {
+                            t = t + tiempoRestante[i];
+                            tiempoEspera[i] = t - tiempoBurst[i];
+                            tiempoRestante[i] = 0;
+                        } else {
+                            t = t + quantum;
+                            tiempoRestante[i] -= quantum;
+                            tiempoEspera[i] += quantum; // Ajuste para calcular correctamente el tiempo de espera
+                        }
+                    }
+                }
+
+                if (hecho === true)
+                    break;
+            }
+        }
+
+        // Función para encontrar el tiempo de retorno de cada proceso
+        const encontrarTiempoRetorno = (procesos, n, tiempoBurst, tiempoEspera, tiempoRetorno) => {
+            for (let i = 0; i < n; i++)
+                tiempoRetorno[i] = tiempoBurst[i] + tiempoEspera[i];
+        }
+
+        // Función para encontrar los tiempos promedio y generar el diagrama de Gantt
+        const encontrarTiemposPromedio = (procesos, n, tiempoBurst, quantum) => {
+            let tiempoEspera = new Array(n).fill(0), tiempoRetorno = new Array(n).fill(0);
+            let tiempoEsperaTotal = 0, tiempoRetornoTotal = 0;
+
+            encontrarTiempoEspera(procesos, n, tiempoBurst, tiempoEspera, quantum);
+            encontrarTiempoRetorno(procesos, n, tiempoBurst, tiempoEspera, tiempoRetorno);
+
+            const resultadosBody = document.getElementById("resultados-body");
+            resultadosBody.innerHTML = "";
+
+            // Agregar el diagrama de Gantt
+            const ganttBars = document.getElementById("gantt-bars");
+            ganttBars.innerHTML = "";
+            const ganttRow = document.createElement("div");
+            ganttRow.className = "gantt-row";
+
+            for (let i = 0; i < n; i++) {
+                const row = document.createElement("tr");
+                const procesoCell = document.createElement("td");
+                const burstTimeCell = document.createElement("td");
+                const waitingTimeCell = document.createElement("td");
+                const turnAroundTimeCell = document.createElement("td");
+
+                procesoCell.textContent = procesos[i];
+                burstTimeCell.textContent = tiempoBurst[i];
+                waitingTimeCell.textContent = tiempoEspera[i];
+                turnAroundTimeCell.textContent = tiempoRetorno[i];
+
+                row.appendChild(procesoCell);
+                row.appendChild(burstTimeCell);
+                row.appendChild(waitingTimeCell);
+                row.appendChild(turnAroundTimeCell);
+
+                resultadosBody.appendChild(row);
+
+                // Agregar la barra al diagrama de Gantt
+                const ganttBar = document.createElement("div");
+                ganttBar.className = "gantt-bar";
+                ganttBar.style.width = `${tiempoBurst[i] * 20}px`;
+                ganttBar.innerHTML = `<div class="gantt-label">${procesos[i]}</div>`;
+                ganttRow.appendChild(ganttBar);
+            }
+
+            ganttBars.appendChild(ganttRow);
+
+            // Calcular y mostrar el tiempo de espera promedio en una tabla adicional
+            const tiempoEsperaPromedioBody = document.getElementById("tiempo-espera-promedio-body");
+            tiempoEsperaPromedioBody.innerHTML = "";
+
+            for (let i = 0; i < n; i++) {
+                tiempoEsperaTotal += tiempoEspera[i];
+            }
+
+            const tiempoEsperaPromedioRow = document.createElement("tr");
+            const tiempoEsperaPromedioLabelCell = document.createElement("td");
+            const tiempoEsperaPromedioCell = document.createElement("td");
+
+            tiempoEsperaPromedioLabelCell.textContent = "Tiempo de Espera Promedio:";
+            tiempoEsperaPromedioCell.textContent = `${tiempoEsperaTotal / n} unidades de tiempo`;
+
+            tiempoEsperaPromedioRow.appendChild(tiempoEsperaPromedioLabelCell);
+            tiempoEsperaPromedioRow.appendChild(tiempoEsperaPromedioCell);
+
+            tiempoEsperaPromedioBody.appendChild(tiempoEsperaPromedioRow);
+        }
+
+        // Función que solicita datos desde el interfaz
+        function solicitarDatos() {
+            const cantidadProcesos = parseInt(prompt("Ingrese la cantidad de procesos:"));
+            
+            const procesos = [];
+            const tiempoBurst = [];
+
+            for (let i = 1; i <= cantidadProcesos; i++) {
+                procesos.push(i);
+                tiempoBurst.push(parseInt(prompt(`Ingrese el tiempo de burst para el proceso ${i}:`)));
+            }
+
+            const quantum = parseInt(prompt("Ingrese el quantum:"));
+
+            encontrarTiemposPromedio(procesos, cantidadProcesos, tiempoBurst, quantum);
+        }
+    </script>
+</body>
+</html>
